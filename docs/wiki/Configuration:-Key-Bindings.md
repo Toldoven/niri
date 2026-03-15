@@ -81,26 +81,44 @@ binds {
 
 This is mostly useful for the scroll bindings.
 
-### Release bindings
+### Press and Release bindings
 
 <sup>Since: next release</sup>
 
-Binds can be set to trigger on release instead of on the initial key press. This is mostly useful when you want to bind a modifier key to an action, as it avoids unwanted triggering when you're trying to use other binds involving that modifier.
+Binds can be set to trigger on key press, on key release, or both. By default, binds trigger on key press. You can specify the timing using `press {}` and `release {}` blocks:
 
 ```kdl
 binds {
-    Mod release=true { toggle-overview; }
+    // Trigger on press (default behavior)
+    Mod+T { spawn "alacritty"; }
+
+    // Trigger on release
+    Mod { release { toggle-overview; } }
+
+    // Trigger on both press and release with different actions
+    Mod+Shift+Q repeat=false {
+        press { spawn "notify-send" "Pressed"; }
+        release { spawn "notify-send" "Released"; }
+    }
 }
 ```
 
-These will normally only trigger if no other keys were released and no keys or mouse buttons were pressed after the bound key was pressed. If you want one to always trigger you should also set `allow-invalidation=false`.
+Release bindings are mostly useful when you want to bind a modifier key to an action, as it avoids unwanted triggering when you're trying to use other binds involving that modifier.
+
+Release binds will normally only trigger if no other keys were released and no keys or mouse buttons were pressed after the bound key was pressed. If you want a release bind to always trigger regardless, set `allow-invalidation=false`:
+
+```kdl
+binds {
+    Mod allow-invalidation=false { release { toggle-overview; } }
+}
+```
 
 Note that the modifier state is updated before binds are evaluated, so if you want to configure a modifier key as both a normal bind and a release bind the entries are slightly different.
 
 ```kdl
 binds {
     Alt+Ctrl+Control_L repeat=false { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "0"; }
-    Alt+Control_L release=true allow-invalidation=false { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "1"; }
+    Alt+Control_L allow-invalidation=false { release { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "1"; } }
 }
 ```
 
