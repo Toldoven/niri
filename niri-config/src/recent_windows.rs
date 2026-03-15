@@ -148,9 +148,9 @@ impl From<MruBind> for Bind {
     fn from(x: MruBind) -> Self {
         Self {
             key: x.key,
-            action: Action::from(x.action),
+            press_action: Some(Action::from(x.action)),
+            release_action: None,
             repeat: true,
-            release: false,
             cooldown: None,
             allow_when_locked: false,
             allow_inhibiting: x.allow_inhibiting,

@@ -577,13 +577,13 @@ impl State {
                     time,
                     mods_changed,
                 );
-                self.handle_bind(bind.clone());
+                self.handle_bind(bind.clone(), pressed);
                 if pressed {
                     self.start_key_repeat(bind);
                 }
             }
             ShouldInterceptResult::InterceptAndHandle(bind) => {
-                self.handle_bind(bind.clone());
+                self.handle_bind(bind.clone(), pressed);
                 if pressed {
                     self.start_key_repeat(bind);
                 }
@@ -618,7 +618,7 @@ impl State {
             .niri
             .event_loop
             .insert_source(repeat_timer, move |_, _, state| {
-                state.handle_bind(bind.clone());
+                state.handle_bind(bind.clone(), true);
                 TimeoutAction::ToDuration(repeat_duration)
             })
             .unwrap();
@@ -648,14 +648,18 @@ impl State {
         self.niri.queue_redraw_all();
     }
 
-    pub fn handle_bind(&mut self, bind: Bind) {
+    pub fn handle_bind(&mut self, bind: Bind, pressed: bool) {
+        let Some(action) = bind.action_for(pressed).cloned() else {
+            return;
+        };
+
         let Some(cooldown) = bind.cooldown else {
-            self.do_action(bind.action, bind.allow_when_locked);
+            self.do_action(action, bind.allow_when_locked);
             return;
         };
 
         // Check this first so that it doesn't trigger the cooldown.
-        if self.niri.is_locked() && !(bind.allow_when_locked || allowed_when_locked(&bind.action)) {
+        if self.niri.is_locked() && !(bind.allow_when_locked || allowed_when_locked(&action)) {
             return;
         }
 
@@ -676,7 +680,7 @@ impl State {
                     .unwrap();
                 entry.insert(token);
 
-                self.do_action(bind.action, bind.allow_when_locked);
+                self.do_action(action, bind.allow_when_locked);
             }
         }
     }
@@ -2831,7 +2835,7 @@ impl State {
                     find_configured_bind(bindings, mod_key, trigger, mods, true)
                 }) {
                     self.niri.suppressed_buttons.insert(button_code);
-                    self.handle_bind(bind.clone());
+                    self.handle_bind(bind.clone(), true);
                     return;
                 };
             }
@@ -3157,9 +3161,9 @@ impl State {
                                     trigger: Trigger::WheelScrollLeft,
                                     modifiers: Modifiers::empty(),
                                 },
-                                action: Action::FocusColumnLeftUnderMouse,
+                                press_action: Some(Action::FocusColumnLeftUnderMouse),
+                                release_action: None,
                                 repeat: true,
-                                release: false,
                                 cooldown: None,
                                 allow_when_locked: false,
                                 allow_inhibiting: false,
@@ -3171,9 +3175,9 @@ impl State {
                                     trigger: Trigger::WheelScrollRight,
                                     modifiers: Modifiers::empty(),
                                 },
-                                action: Action::FocusColumnRightUnderMouse,
+                                press_action: Some(Action::FocusColumnRightUnderMouse),
+                                release_action: None,
                                 repeat: true,
-                                release: false,
                                 cooldown: None,
                                 allow_when_locked: false,
                                 allow_inhibiting: false,
@@ -3204,12 +3208,12 @@ impl State {
 
                     if let Some(right) = bind_right {
                         for _ in 0..ticks {
-                            self.handle_bind(right.clone());
+                            self.handle_bind(right.clone(), true);
                         }
                     }
                     if let Some(left) = bind_left {
                         for _ in ticks..0 {
-                            self.handle_bind(left.clone());
+                            self.handle_bind(left.clone(), true);
                         }
                     }
                 }
@@ -3224,9 +3228,9 @@ impl State {
                                 trigger: Trigger::WheelScrollUp,
                                 modifiers: Modifiers::empty(),
                             },
-                            action: Action::FocusWorkspaceUpUnderMouse,
+                            press_action: Some(Action::FocusWorkspaceUpUnderMouse),
+                            release_action: None,
                             repeat: true,
-                            release: false,
                             cooldown: Some(Duration::from_millis(50)),
                             allow_when_locked: false,
                             allow_inhibiting: false,
@@ -3238,9 +3242,9 @@ impl State {
                                 trigger: Trigger::WheelScrollDown,
                                 modifiers: Modifiers::empty(),
                             },
-                            action: Action::FocusWorkspaceDownUnderMouse,
+                            press_action: Some(Action::FocusWorkspaceDownUnderMouse),
+                            release_action: None,
                             repeat: true,
-                            release: false,
                             cooldown: Some(Duration::from_millis(50)),
                             allow_when_locked: false,
                             allow_inhibiting: false,
@@ -3254,9 +3258,9 @@ impl State {
                                 trigger: Trigger::WheelScrollUp,
                                 modifiers: Modifiers::empty(),
                             },
-                            action: Action::FocusColumnLeftUnderMouse,
+                            press_action: Some(Action::FocusColumnLeftUnderMouse),
+                            release_action: None,
                             repeat: true,
-                            release: false,
                             cooldown: Some(Duration::from_millis(50)),
                             allow_when_locked: false,
                             allow_inhibiting: false,
@@ -3268,9 +3272,9 @@ impl State {
                                 trigger: Trigger::WheelScrollDown,
                                 modifiers: Modifiers::empty(),
                             },
-                            action: Action::FocusColumnRightUnderMouse,
+                            press_action: Some(Action::FocusColumnRightUnderMouse),
+                            release_action: None,
                             repeat: true,
-                            release: false,
                             cooldown: Some(Duration::from_millis(50)),
                             allow_when_locked: false,
                             allow_inhibiting: false,
@@ -3301,12 +3305,12 @@ impl State {
 
                     if let Some(down) = bind_down {
                         for _ in 0..ticks {
-                            self.handle_bind(down.clone());
+                            self.handle_bind(down.clone(), true);
                         }
                     }
                     if let Some(up) = bind_up {
                         for _ in ticks..0 {
-                            self.handle_bind(up.clone());
+                            self.handle_bind(up.clone(), true);
                         }
                     }
                 }
@@ -3452,12 +3456,12 @@ impl State {
 
                     if let Some(right) = bind_right {
                         for _ in 0..ticks {
-                            self.handle_bind(right.clone());
+                            self.handle_bind(right.clone(), true);
                         }
                     }
                     if let Some(left) = bind_left {
                         for _ in ticks..0 {
-                            self.handle_bind(left.clone());
+                            self.handle_bind(left.clone(), true);
                         }
                     }
                 }
@@ -3488,12 +3492,12 @@ impl State {
 
                     if let Some(down) = bind_down {
                         for _ in 0..ticks {
-                            self.handle_bind(down.clone());
+                            self.handle_bind(down.clone(), true);
                         }
                     }
                     if let Some(up) = bind_up {
                         for _ in ticks..0 {
-                            self.handle_bind(up.clone());
+                            self.handle_bind(up.clone(), true);
                         }
                     }
                 }
@@ -4412,14 +4416,16 @@ fn should_intercept_key<'a>(
         let mut use_screenshot_ui_action = true;
 
         if let Some(bind) = &final_bind {
-            if allowed_during_screenshot(&bind.action) {
-                use_screenshot_ui_action = false;
+            if let Some(action) = bind.action_for(pressed) {
+                if allowed_during_screenshot(action) {
+                    use_screenshot_ui_action = false;
+                }
             }
         }
 
         if use_screenshot_ui_action {
-            let release = if let Some(bind) = &final_bind {
-                bind.release
+            let _release = if let Some(bind) = &final_bind {
+                bind.has_release()
             } else {
                 false
             };
@@ -4430,9 +4436,9 @@ fn should_intercept_key<'a>(
                         // Not entirely correct but it doesn't matter in how we currently use it.
                         modifiers: Modifiers::empty(),
                     },
-                    action,
+                    press_action: Some(action),
+                    release_action: None,
                     repeat: true,
-                    release,
                     cooldown: None,
                     allow_when_locked: false,
                     // The screenshot UI owns the focus anyway, so this doesn't really matter.
@@ -4451,18 +4457,18 @@ fn should_intercept_key<'a>(
             if is_inhibiting_shortcuts && bind.allow_inhibiting {
                 ShouldInterceptResult::Forward
             } else if modified.is_modifier_key() {
-                if bind.release {
+                if bind.has_release() {
                     ShouldInterceptResult::Forward
                 } else {
                     ShouldInterceptResult::ForwardAndHandle(bind)
                 }
             } else {
                 suppressed_keys.insert(key_code);
-                if bind.release {
-                    // If this is a release bind it should still be intercepted. This does mean it
-                    // can be intercepted and then not end up being part of a real bind, but that's
-                    // very much an edge case and better than failing to intercept a keystroke that
-                    // a user intended to invoke a bind.
+                if bind.has_release() && !bind.has_press() {
+                    // If this is a release-only bind it should still be intercepted. This does mean
+                    // it can be intercepted and then not end up being part of a real bind, but
+                    // that's very much an edge case and better than failing to intercept a
+                    // keystroke that a user intended to invoke a bind.
                     ShouldInterceptResult::InterceptOnly
                 } else {
                     ShouldInterceptResult::InterceptAndHandle(bind)
@@ -4476,7 +4482,7 @@ fn should_intercept_key<'a>(
 
             // If this is a valid release bind, handle it
             if let Some(bind) = final_bind {
-                if bind.release
+                if bind.has_release()
                     && (valid_release_trigger == Some(key_code) || !bind.allow_invalidation)
                 {
                     ShouldInterceptResult::InterceptAndHandle(bind)
@@ -4488,7 +4494,7 @@ fn should_intercept_key<'a>(
             }
         }
         (Some(bind), false)
-            if bind.release
+            if bind.has_release()
                 && (valid_release_trigger == Some(key_code) || !bind.allow_invalidation) =>
         {
             // We don't need to check for shortcut inhibition here because if
@@ -4528,9 +4534,9 @@ fn find_bind<'a>(
                 trigger: Trigger::Keysym(modified),
                 modifiers: Modifiers::empty(),
             },
-            action,
+            press_action: Some(action),
+            release_action: None,
             repeat: true,
-            release: false,
             cooldown: None,
             allow_when_locked: false,
             // In a worst-case scenario, the user has no way to unlock the compositor and a
@@ -4578,7 +4584,9 @@ fn find_configured_bind<'a>(
     }
 
     for bind in bindings {
-        if bind.release == pressed {
+        let is_press_bind = bind.press_action.is_some();
+        let is_release_bind = bind.release_action.is_some();
+        if (pressed && !is_press_bind) || (!pressed && !is_release_bind) {
             continue;
         }
 
@@ -4789,9 +4797,9 @@ fn hardcoded_overview_bind(raw: Keysym, mods: ModifiersState) -> Option<Bind> {
             trigger: Trigger::Keysym(raw),
             modifiers: Modifiers::empty(),
         },
-        action,
+        press_action: Some(action),
+        release_action: None,
         repeat,
-        release: false,
         cooldown: None,
         allow_when_locked: false,
         allow_inhibiting: false,
@@ -5333,9 +5341,9 @@ mod tests {
                 trigger: Trigger::Keysym(CLOSE_KEYSYM),
                 modifiers: Modifiers::COMPOSITOR | Modifiers::CTRL,
             },
-            action: Action::CloseWindow,
+            press_action: Some(Action::CloseWindow),
+            release_action: None,
             repeat: true,
-            release: false,
             cooldown: None,
             allow_when_locked: false,
             allow_inhibiting: true,
@@ -5353,7 +5361,7 @@ mod tests {
         assert_matches!(
             filter,
             ShouldInterceptResult::InterceptAndHandle(Bind {
-                action: Action::CloseWindow,
+                press_action: Some(Action::CloseWindow),
                 ..
             })
         );
@@ -5387,7 +5395,7 @@ mod tests {
         assert_matches!(
             filter,
             ShouldInterceptResult::InterceptAndHandle(Bind {
-                action: Action::CloseWindow,
+                press_action: Some(Action::CloseWindow),
                 ..
             })
         );
@@ -5407,7 +5415,7 @@ mod tests {
         assert_matches!(
             filter,
             ShouldInterceptResult::InterceptAndHandle(Bind {
-                action: Action::CloseWindow,
+                press_action: Some(Action::CloseWindow),
                 ..
             })
         );
@@ -5453,7 +5461,7 @@ mod tests {
         assert_matches!(
             filter,
             ShouldInterceptResult::InterceptAndHandle(Bind {
-                action: Action::CloseWindow,
+                press_action: Some(Action::CloseWindow),
                 ..
             })
         );
@@ -5474,9 +5482,9 @@ mod tests {
                     trigger: Trigger::KeyCompositor,
                     modifiers: Modifiers::empty(),
                 },
-                action: Action::ToggleOverview,
+                press_action: None,
+                release_action: Some(Action::ToggleOverview),
                 repeat: true,
-                release: true,
                 cooldown: None,
                 allow_when_locked: false,
                 allow_inhibiting: true,
@@ -5489,9 +5497,9 @@ mod tests {
                     trigger: Trigger::Keysym(CLOSE_KEYSYM),
                     modifiers: Modifiers::COMPOSITOR,
                 },
-                action: Action::CloseWindow,
+                press_action: None,
+                release_action: Some(Action::CloseWindow),
                 repeat: true,
-                release: true,
                 cooldown: None,
                 allow_when_locked: false,
                 allow_inhibiting: true,
@@ -5504,9 +5512,9 @@ mod tests {
                     trigger: Trigger::Keysym(OTHER_KEYSYM),
                     modifiers: Modifiers::COMPOSITOR,
                 },
-                action: Action::CenterColumn,
+                press_action: Some(Action::CenterColumn),
+                release_action: None,
                 repeat: true,
-                release: false,
                 cooldown: None,
                 allow_when_locked: false,
                 allow_inhibiting: true,
@@ -5527,7 +5535,7 @@ mod tests {
         assert_matches!(
             result,
             ShouldInterceptResult::ForwardAndHandle(Bind {
-                action: Action::ToggleOverview,
+                release_action: Some(Action::ToggleOverview),
                 ..
             })
         );
@@ -5555,7 +5563,7 @@ mod tests {
         assert_matches!(
             result,
             ShouldInterceptResult::InterceptAndHandle(Bind {
-                action: Action::CenterColumn,
+                press_action: Some(Action::CenterColumn),
                 ..
             })
         );
@@ -5591,7 +5599,7 @@ mod tests {
         assert_matches!(
             result,
             ShouldInterceptResult::InterceptAndHandle(Bind {
-                action: Action::CloseWindow,
+                release_action: Some(Action::CloseWindow),
                 ..
             })
         );
@@ -5632,9 +5640,9 @@ mod tests {
                     trigger: Trigger::KeyCompositor,
                     modifiers: Modifiers::empty(),
                 },
-                action: Action::ToggleOverview,
+                press_action: None,
+                release_action: Some(Action::ToggleOverview),
                 repeat: true,
-                release: true,
                 cooldown: None,
                 allow_when_locked: false,
                 allow_inhibiting: true,
@@ -5647,9 +5655,9 @@ mod tests {
                     trigger: Trigger::Keysym(CLOSE_KEYSYM),
                     modifiers: Modifiers::COMPOSITOR,
                 },
-                action: Action::CloseWindow,
+                press_action: None,
+                release_action: Some(Action::CloseWindow),
                 repeat: true,
-                release: true,
                 cooldown: None,
                 allow_when_locked: false,
                 allow_inhibiting: true,
@@ -5672,7 +5680,7 @@ mod tests {
         assert_matches!(
             result,
             ShouldInterceptResult::ForwardAndHandle(Bind {
-                action: Action::ToggleOverview,
+                release_action: Some(Action::ToggleOverview),
                 ..
             })
         );
@@ -5691,7 +5699,7 @@ mod tests {
         assert_matches!(
             result,
             ShouldInterceptResult::InterceptAndHandle(Bind {
-                action: Action::CloseWindow,
+                release_action: Some(Action::CloseWindow),
                 ..
             })
         );
@@ -5700,10 +5708,59 @@ mod tests {
         assert_matches!(
             result,
             ShouldInterceptResult::ForwardAndHandle(Bind {
-                action: Action::ToggleOverview,
+                release_action: Some(Action::ToggleOverview),
                 ..
             })
         );
+    }
+
+    #[test]
+    fn test_press_and_release_bindings() {
+        // Test binds that have both press_action and release_action
+        let bindings = Binds(vec![Bind {
+            key: Key {
+                trigger: Trigger::Keysym(CLOSE_KEYSYM),
+                modifiers: Modifiers::COMPOSITOR,
+            },
+            press_action: Some(Action::CloseWindow),
+            release_action: Some(Action::CenterColumn),
+            repeat: true,
+            cooldown: None,
+            allow_when_locked: false,
+            allow_inhibiting: true,
+            allow_invalidation: true,
+            hotkey_overlay_title: None,
+        }]);
+
+        let mut state = create_test_state();
+        let mods = ModifiersState {
+            logo: true,
+            ..Default::default()
+        };
+
+        // Press should trigger the press action
+        let result = process_close_key(&mut state, &bindings, mods, true);
+        assert_matches!(
+            result,
+            ShouldInterceptResult::InterceptAndHandle(Bind {
+                press_action: Some(Action::CloseWindow),
+                release_action: Some(Action::CenterColumn),
+                ..
+            })
+        );
+        assert!(state.suppressed_keys.contains(&CLOSE_KEY_CODE));
+
+        // Release should trigger the release action
+        let result = process_close_key(&mut state, &bindings, mods, false);
+        assert_matches!(
+            result,
+            ShouldInterceptResult::InterceptAndHandle(Bind {
+                press_action: Some(Action::CloseWindow),
+                release_action: Some(Action::CenterColumn),
+                ..
+            })
+        );
+        assert!(state.suppressed_keys.is_empty());
     }
 
     #[test]
@@ -5713,9 +5770,9 @@ mod tests {
                 trigger: Trigger::Keysym(CLOSE_KEYSYM),
                 modifiers: Modifiers::COMPOSITOR | Modifiers::CTRL,
             },
-            action: Action::CloseWindow,
+            press_action: Some(Action::CloseWindow),
+            release_action: None,
             repeat: true,
-            release: false,
             cooldown: None,
             allow_when_locked: false,
             allow_inhibiting: false, // This binding cannot be inhibited
@@ -5740,7 +5797,7 @@ mod tests {
         assert_matches!(
             filter,
             ShouldInterceptResult::InterceptAndHandle(Bind {
-                action: Action::CloseWindow,
+                press_action: Some(Action::CloseWindow),
                 ..
             })
         );
@@ -5759,9 +5816,9 @@ mod tests {
                     trigger: Trigger::Keysym(Keysym::q),
                     modifiers: Modifiers::COMPOSITOR,
                 },
-                action: Action::CloseWindow,
+                press_action: Some(Action::CloseWindow),
+                release_action: None,
                 repeat: true,
-                release: false,
                 cooldown: None,
                 allow_when_locked: false,
                 allow_inhibiting: true,
@@ -5773,9 +5830,9 @@ mod tests {
                     trigger: Trigger::Keysym(Keysym::h),
                     modifiers: Modifiers::SUPER,
                 },
-                action: Action::FocusColumnLeft,
+                press_action: Some(Action::FocusColumnLeft),
+                release_action: None,
                 repeat: true,
-                release: false,
                 cooldown: None,
                 allow_when_locked: false,
                 allow_inhibiting: true,
@@ -5787,9 +5844,9 @@ mod tests {
                     trigger: Trigger::Keysym(Keysym::j),
                     modifiers: Modifiers::empty(),
                 },
-                action: Action::FocusWindowDown,
+                press_action: Some(Action::FocusWindowDown),
+                release_action: None,
                 repeat: true,
-                release: false,
                 cooldown: None,
                 allow_when_locked: false,
                 allow_inhibiting: true,
@@ -5801,9 +5858,9 @@ mod tests {
                     trigger: Trigger::Keysym(Keysym::k),
                     modifiers: Modifiers::COMPOSITOR | Modifiers::SUPER,
                 },
-                action: Action::FocusWindowUp,
+                press_action: Some(Action::FocusWindowUp),
+                release_action: None,
                 repeat: true,
-                release: false,
                 cooldown: None,
                 allow_when_locked: false,
                 allow_inhibiting: true,
@@ -5815,9 +5872,9 @@ mod tests {
                     trigger: Trigger::Keysym(Keysym::l),
                     modifiers: Modifiers::SUPER | Modifiers::ALT,
                 },
-                action: Action::FocusColumnRight,
+                press_action: Some(Action::FocusColumnRight),
+                release_action: None,
                 repeat: true,
-                release: false,
                 cooldown: None,
                 allow_when_locked: false,
                 allow_inhibiting: true,
@@ -5829,9 +5886,9 @@ mod tests {
                     trigger: Trigger::Keysym(Keysym::Super_L),
                     modifiers: Modifiers::empty(),
                 },
-                action: Action::ToggleOverview,
+                press_action: None,
+                release_action: Some(Action::ToggleOverview),
                 repeat: false,
-                release: true,
                 cooldown: None,
                 allow_when_locked: false,
                 allow_inhibiting: true,
