@@ -2786,7 +2786,38 @@ impl State {
 
         let mod_key = self.backend.mod_key(&self.niri.config.borrow());
 
-        // Ignore release events for mouse clicks that triggered a bind.
+        let valid_mouse_release_trigger = if button_state == ButtonState::Pressed {
+            self.niri.valid_mouse_release_trigger.replace(button_code)
+        } else {
+            self.niri.valid_mouse_release_trigger.take()
+        };
+
+        if button_state == ButtonState::Released {
+            let mods = self.niri.seat.get_keyboard().unwrap().modifier_state();
+            let modifiers = modifiers_from_state(mods);
+
+            if let Some(bind) = match button {
+                Some(MouseButton::Left) => Some(Trigger::MouseLeft),
+                Some(MouseButton::Right) => Some(Trigger::MouseRight),
+                Some(MouseButton::Middle) => Some(Trigger::MouseMiddle),
+                Some(MouseButton::Back) => Some(Trigger::MouseBack),
+                Some(MouseButton::Forward) => Some(Trigger::MouseForward),
+                _ => None,
+            }
+            .and_then(|trigger| {
+                let config = self.niri.config.borrow();
+                let bindings = make_binds_iter(&config, &mut self.niri.window_mru_ui, modifiers);
+                find_configured_bind(bindings, mod_key, trigger, mods, false)
+            }) {
+                if bind.has_release() && (valid_mouse_release_trigger == Some(button_code) || !bind.allow_invalidation)
+                {
+                    self.niri.suppressed_buttons.remove(&button_code);
+                    self.handle_bind(bind.clone(), false);
+                    return;
+                }
+            };
+        }
+
         if self.niri.suppressed_buttons.remove(&button_code) {
             return;
         }
@@ -2830,13 +2861,14 @@ impl State {
                 }
                 .and_then(|trigger| {
                     let config = self.niri.config.borrow();
-                    let bindings =
-                        make_binds_iter(&config, &mut self.niri.window_mru_ui, modifiers);
+                    let bindings = make_binds_iter(&config, &mut self.niri.window_mru_ui, modifiers);
                     find_configured_bind(bindings, mod_key, trigger, mods, true)
                 }) {
-                    self.niri.suppressed_buttons.insert(button_code);
-                    self.handle_bind(bind.clone(), true);
-                    return;
+                    if bind.has_press() {
+                        self.niri.suppressed_buttons.insert(button_code);
+                        self.handle_bind(bind.clone(), true);
+                        return;
+                    }
                 };
             }
 
