@@ -4489,10 +4489,10 @@ fn should_intercept_key<'a>(
             if is_inhibiting_shortcuts && bind.allow_inhibiting {
                 ShouldInterceptResult::Forward
             } else if modified.is_modifier_key() {
-                if bind.has_release() {
-                    ShouldInterceptResult::Forward
-                } else {
+                if bind.has_press() {
                     ShouldInterceptResult::ForwardAndHandle(bind)
+                } else {
+                    ShouldInterceptResult::Forward
                 }
             } else {
                 suppressed_keys.insert(key_code);
@@ -4610,9 +4610,25 @@ fn find_configured_bind<'a>(
     // Handle configured binds.
     let mut modifiers = modifiers_from_state(mods);
 
-    let mod_down = modifiers_from_state(mods).contains(mod_key.to_modifiers());
-    if mod_down {
-        modifiers |= Modifiers::COMPOSITOR;
+    // Check if the trigger is a modifier key (like Mod, Alt_L, Control_L, Shift_L, etc.)
+    // If so, we need to remove its modifier from the current modifiers since the key is the trigger, not a modifier.
+    let trigger_is_modifier = match trigger {
+        Trigger::KeyCompositor => true,
+        Trigger::Keysym(keysym) => keysym.is_modifier_key(),
+        _ => false,
+    };
+
+    if trigger == Trigger::KeyCompositor {
+        modifiers.remove(mod_key.to_modifiers());
+    } else {
+        if trigger_is_modifier {
+            let trigger_mod = keysym_to_modifiers(trigger);
+            modifiers.remove(trigger_mod);
+        }
+        let mod_down = modifiers_from_state(mods).contains(mod_key.to_modifiers());
+        if mod_down {
+            modifiers |= Modifiers::COMPOSITOR;
+        }
     }
 
     for bind in bindings {
@@ -4627,10 +4643,12 @@ fn find_configured_bind<'a>(
         }
 
         let mut bind_modifiers = bind.key.modifiers;
-        if bind_modifiers.contains(Modifiers::COMPOSITOR) {
-            bind_modifiers |= mod_key.to_modifiers();
-        } else if bind_modifiers.contains(mod_key.to_modifiers()) {
-            bind_modifiers |= Modifiers::COMPOSITOR;
+        if !trigger_is_modifier {
+            if bind_modifiers.contains(Modifiers::COMPOSITOR) {
+                bind_modifiers |= mod_key.to_modifiers();
+            } else if bind_modifiers.contains(mod_key.to_modifiers()) {
+                bind_modifiers |= Modifiers::COMPOSITOR;
+            }
         }
 
         if bind_modifiers == modifiers {
@@ -4639,6 +4657,25 @@ fn find_configured_bind<'a>(
     }
 
     None
+}
+
+/// Convert a modifier keysym to its corresponding Modifiers flags.
+fn keysym_to_modifiers(trigger: Trigger) -> Modifiers {
+    match trigger {
+        Trigger::Keysym(keysym) => {
+            use smithay::input::keyboard::keysyms::*;
+            match keysym.raw() {
+                KEY_Shift_L | KEY_Shift_R => Modifiers::SHIFT,
+                KEY_Control_L | KEY_Control_R => Modifiers::CTRL,
+                KEY_Alt_L | KEY_Alt_R => Modifiers::ALT,
+                KEY_Super_L | KEY_Super_R => Modifiers::SUPER,
+                KEY_ISO_Level3_Shift => Modifiers::ISO_LEVEL3_SHIFT,
+                KEY_ISO_Level5_Shift => Modifiers::ISO_LEVEL5_SHIFT,
+                _ => Modifiers::empty(),
+            }
+        }
+        _ => Modifiers::empty(),
+    }
 }
 
 fn find_configured_switch_action(
